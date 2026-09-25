@@ -1,0 +1,57 @@
+name: Build Samsung SM8250 Kernel
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-kernel:
+    name: Build ${{ matrix.device }} | KSU
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        device: [gts7l, gts7lwifi]
+
+    steps:
+      - name: Checkout kernel source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Set up environment
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y bc bison build-essential ccache curl flex gawk \
+            git gnupg gperf libncurses-dev libssl-dev libxml2 libxml2-utils \
+            lzop rsync schedtool squashfs-tools xsltproc zip zlib1g-dev \
+            python-is-python3
+          mkdir -p ~/.cache/ccache_samsung
+          ccache -M 10G
+
+      - name: Restore ccache
+        uses: actions/cache/restore@v4
+        with:
+          path: ~/.cache/ccache_samsung
+          key: ${{ runner.os }}-samsung-${{ matrix.device }}-${{ github.run_id }}
+          restore-keys: |
+            ${{ runner.os }}-samsung-${{ matrix.device }}-
+            ${{ runner.os }}-samsung-
+
+      - name: Setup ZyC-Clang 16
+        run: |
+          mkdir -p $HOME/zyc-clang
+          cd $HOME/zyc-clang
+          wget -q https://github.com/ZyCromerZ/Clang/releases/download/16.0.6-20260807-release/Clang-16.0.6-20260807.tar.gz
+          tar -zxvf Clang-16.0.6-20260807.tar.gz
+
+      - name: Run build script
+        run: |
+          chmod +x build_samsung.sh
+          ./build_samsung.sh ${{ matrix.device }} ksu
+
+      - name: Upload flashable ZIP
+        uses: actions/upload-artifact@v4
+        with:
+          name: SamsungSM8250-${{ matrix.device }}-${{ github.run_id }}
+          path: SamsungSM8250_*.zip
+          compression-level: 0
